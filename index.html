@@ -115,20 +115,37 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
   </div>
 
   <div class="sec">
-    <h2>Discount</h2>
-    <div class="row">
-      <div class="field" style="flex:2"><label>Discount Type</label>
-        <select id="discountType" onchange="onDiscountChange()">
-          <option value="none">No Discount</option>
-          <option value="first_time">20% off — First Time Client</option>
-          <option value="service">10% off — Fire/Police/Military</option>
-          <option value="custom">Custom Discount</option>
-        </select>
+    <h2>Discounts</h2>
+    <div class="addon-grid" style="grid-template-columns:1fr">
+      <div class="addon-item" id="disc_first" onclick="toggleDiscount('first')">
+        <div class="addon-check"></div>
+        <span class="addon-name">20% off base price — First Time Client</span>
+        <span class="addon-price" id="disc_first_amt"></span>
       </div>
-      <div class="field" id="customPctField" style="display:none;flex:0.5"><label>%</label><input type="number" id="customPct" value="10" min="0" max="100" onchange="calc()"></div>
-      <div class="field" id="customLabelField" style="display:none;flex:1.5"><label>Label</label><input id="customLabel" value="Discount" onchange="calc()"></div>
+      <div class="addon-item" id="disc_service" onclick="toggleDiscount('service')">
+        <div class="addon-check"></div>
+        <span class="addon-name">10% off base price — Fire/Police/Military</span>
+        <span class="addon-price" id="disc_service_amt"></span>
+      </div>
+      <div class="addon-item" id="disc_pct" onclick="toggleDiscount('pct')">
+        <div class="addon-check"></div>
+        <span class="addon-name">Custom % Discount</span>
+        <span class="addon-price" id="disc_pct_amt"></span>
+      </div>
+      <div id="disc_pct_fields" style="display:none;padding:4px 0 4px 28px" class="row">
+        <div class="field" style="flex:0.5"><label>%</label><input type="number" id="customPct" value="10" min="0" max="100" onchange="calc()"></div>
+        <div class="field" style="flex:1.5"><label>Label</label><input id="customPctLabel" value="Discount" onchange="calc()"></div>
+      </div>
+      <div class="addon-item" id="disc_flat" onclick="toggleDiscount('flat')">
+        <div class="addon-check"></div>
+        <span class="addon-name">Custom $ Amount</span>
+        <span class="addon-price" id="disc_flat_amt"></span>
+      </div>
+      <div id="disc_flat_fields" style="display:none;padding:4px 0 4px 28px" class="row">
+        <div class="field" style="flex:0.7"><label>$ Amount</label><input type="number" id="customFlat" value="50" min="0" onchange="calc()"></div>
+        <div class="field" style="flex:1.5"><label>Label</label><input id="customFlatLabel" value="Discount" onchange="calc()"></div>
+      </div>
     </div>
-    <p id="discountInfo" style="font-size:13px;color:#c49a6c;font-weight:500;margin-top:4px"></p>
   </div>
 
   <div class="sec">
@@ -147,9 +164,9 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
 
 <!-- ============ PREVIEW VIEW ============ -->
 <div id="previewView" class="container">
-  <div class="action-bar no-print">
-    <button class="btn btn-secondary" onclick="showEdit()">&#8592; Edit</button>
-    <button class="btn btn-primary" onclick="savePDF()">Save as PDF</button>
+  <div class="action-bar no-print" style="position:sticky;top:0;background:#f5f2ed;padding:12px 0;z-index:10;border-bottom:1px solid #e8e2da;margin-bottom:12px">
+    <button class="btn btn-secondary" onclick="showEdit()" style="padding:12px 28px;font-size:13px">&#8592; Back to Edit</button>
+    <button class="btn btn-primary" onclick="savePDF()" style="padding:12px 28px;font-size:13px">Save as PDF</button>
   </div>
 
   <div id="quoteOutput">
@@ -196,10 +213,7 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
         </div>
 
         <div style="margin-top:8px;margin-bottom:20px">
-          <div id="qDiscountRow" style="display:none;justify-content:flex-end;gap:20px;padding:8px 0;font-size:14px;color:#7a716a">
-            <span id="qDiscountLabel" style="font-style:italic"></span>
-            <span id="qDiscountAmount" style="text-decoration:line-through;color:#c49a6c;font-weight:500"></span>
-          </div>
+          <div id="qDiscountRow" style="display:none"></div>
           <div style="display:flex;justify-content:flex-end;align-items:center;gap:24px;padding:16px 0;border-top:2px solid #2a2420;margin-top:4px">
             <span style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;letter-spacing:0.1em">Total</span>
             <span id="qTotal" style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:700;color:#2a2420"></span>
@@ -324,10 +338,15 @@ function onPkgChange() {
   calc();
 }
 
-function onDiscountChange() {
-  const dt = document.getElementById("discountType").value;
-  document.getElementById("customPctField").style.display = dt==="custom" ? "block" : "none";
-  document.getElementById("customLabelField").style.display = dt==="custom" ? "block" : "none";
+let activeDiscounts = {};
+
+function toggleDiscount(type) {
+  activeDiscounts[type] = !activeDiscounts[type];
+  const el = document.getElementById("disc_"+type);
+  el.classList.toggle("active", activeDiscounts[type]);
+  el.querySelector(".addon-check").textContent = activeDiscounts[type] ? "\u2713" : "";
+  if (type === "pct") document.getElementById("disc_pct_fields").style.display = activeDiscounts[type] ? "flex" : "none";
+  if (type === "flat") document.getElementById("disc_flat_fields").style.display = activeDiscounts[type] ? "flex" : "none";
   calc();
 }
 
@@ -354,20 +373,43 @@ function calc() {
   });
 
   const subtotal = pkgAmt + addonsTotal;
-  const dt = document.getElementById("discountType").value;
-  let discAmt = 0;
-  if (dt === "first_time") discAmt = Math.round((pkg.basePrice || pkg.hourlyRate * (parseInt(document.getElementById("hours").value)||3)) * 0.2);
-  else if (dt === "service") discAmt = Math.round((pkg.basePrice || pkg.hourlyRate * (parseInt(document.getElementById("hours").value)||3)) * 0.1);
-  else if (dt === "custom") discAmt = Math.round(subtotal * ((parseInt(document.getElementById("customPct").value)||0) / 100));
+  const baseAmt = pkg.basePrice || pkg.hourlyRate * (parseInt(document.getElementById("hours").value)||3);
+  let totalDiscount = 0;
+  window._discountItems = [];
 
-  const total = subtotal - discAmt;
+  if (activeDiscounts.first) {
+    const amt = Math.round(baseAmt * 0.2);
+    totalDiscount += amt;
+    window._discountItems.push({label:"20% off base price \u2014 first time client", amount:amt});
+    document.getElementById("disc_first_amt").textContent = "-"+currency(amt);
+  } else { document.getElementById("disc_first_amt").textContent = ""; }
+
+  if (activeDiscounts.service) {
+    const amt = Math.round(baseAmt * 0.1);
+    totalDiscount += amt;
+    window._discountItems.push({label:"10% off base price \u2014 Fire, Police, Military", amount:amt});
+    document.getElementById("disc_service_amt").textContent = "-"+currency(amt);
+  } else { document.getElementById("disc_service_amt").textContent = ""; }
+
+  if (activeDiscounts.pct) {
+    const pct = parseInt(document.getElementById("customPct").value)||0;
+    const amt = Math.round(subtotal * (pct / 100));
+    totalDiscount += amt;
+    const lbl = (document.getElementById("customPctLabel").value||"Discount") + " ("+pct+"%)";
+    window._discountItems.push({label:lbl, amount:amt});
+    document.getElementById("disc_pct_amt").textContent = "-"+currency(amt);
+  } else { document.getElementById("disc_pct_amt").textContent = ""; }
+
+  if (activeDiscounts.flat) {
+    const amt = Math.max(0, parseInt(document.getElementById("customFlat").value)||0);
+    totalDiscount += amt;
+    const lbl = document.getElementById("customFlatLabel").value||"Discount";
+    window._discountItems.push({label:lbl, amount:amt});
+    document.getElementById("disc_flat_amt").textContent = "-"+currency(amt);
+  } else { document.getElementById("disc_flat_amt").textContent = ""; }
+
+  const total = subtotal - totalDiscount;
   document.getElementById("editTotal").textContent = currency(total);
-
-  let discLabel = "";
-  if (dt === "first_time") discLabel = "20% off base price \u2014 first time client: -" + currency(discAmt);
-  else if (dt === "service") discLabel = "10% off base price \u2014 Fire, Police, Military: -" + currency(discAmt);
-  else if (dt === "custom") discLabel = (document.getElementById("customLabel").value||"Discount") + ": -" + currency(discAmt);
-  document.getElementById("discountInfo").textContent = discLabel;
 }
 
 function showPreview() {
@@ -412,17 +454,21 @@ function showPreview() {
 
   // Discount
   const subtotal = pkgAmt + addonsTotal;
-  const dt = document.getElementById("discountType").value;
-  let discAmt = 0, discLabel = "";
-  if (dt==="first_time"){discAmt=Math.round((pkg.basePrice||pkg.hourlyRate*(parseInt(document.getElementById("hours").value)||3))*0.2);discLabel="20% off base price \u2014 first time client"}
-  else if(dt==="service"){discAmt=Math.round((pkg.basePrice||pkg.hourlyRate*(parseInt(document.getElementById("hours").value)||3))*0.1);discLabel="10% off base price \u2014 Fire, Police, Military"}
-  else if(dt==="custom"){discAmt=Math.round(subtotal*((parseInt(document.getElementById("customPct").value)||0)/100));discLabel=document.getElementById("customLabel").value||"Discount"}
-
+  const discItems = window._discountItems || [];
   const dRow = document.getElementById("qDiscountRow");
-  if (discAmt > 0) { dRow.style.display = "flex"; document.getElementById("qDiscountLabel").textContent = discLabel; document.getElementById("qDiscountAmount").textContent = currency(discAmt); }
-  else { dRow.style.display = "none"; }
+  let totalDiscount = 0;
 
-  document.getElementById("qTotal").textContent = currency(subtotal - discAmt);
+  if (discItems.length > 0) {
+    dRow.style.display = "block";
+    dRow.innerHTML = discItems.map(d => {
+      totalDiscount += d.amount;
+      return '<div style="display:flex;justify-content:flex-end;gap:20px;padding:4px 0;font-size:13px;color:#7a716a"><span style="font-style:italic">'+d.label+'</span><span style="text-decoration:line-through;color:#c49a6c;font-weight:500">'+currency(d.amount)+'</span></div>';
+    }).join("");
+  } else {
+    dRow.style.display = "none";
+  }
+
+  document.getElementById("qTotal").textContent = currency(subtotal - totalDiscount);
 
   // Notes
   const notes = document.getElementById("notes").value;
