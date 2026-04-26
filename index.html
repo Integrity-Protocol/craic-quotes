@@ -54,10 +54,14 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
 #editView{display:block}
 #previewView{display:none}
 
-@media print{.quote-page{transform:scale(0.85);transform-origin:top center}
-  body{background:white}
-  .action-bar,.no-print{display:none!important}
-  .quote-page{min-height:100vh}
+@media print{
+  body{background:white!important}
+  #editView,.action-bar,.no-print{display:none!important}
+  #previewView{display:block!important;padding:0!important}
+  .container{padding:0!important;max-width:100%!important}
+  .quote-page{min-height:auto}
+  .quote-inner{padding:10px 28px 12px!important}
+  .quote-card{box-shadow:none!important;border:1px solid #e8e2da!important}
 }
 @media(max-width:640px){
   .addon-grid{grid-template-columns:1fr}
@@ -166,7 +170,7 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
 <div id="previewView" class="container">
   <div class="action-bar no-print" style="position:sticky;top:0;background:#f5f2ed;padding:12px 0;z-index:10;border-bottom:1px solid #e8e2da;margin-bottom:12px">
     <button class="btn btn-secondary" onclick="showEdit()" style="padding:12px 28px;font-size:13px">&#8592; Back to Edit</button>
-    <button class="btn btn-primary" onclick="savePDF()" style="padding:12px 28px;font-size:13px">Save as PDF</button>
+    <button class="btn btn-primary" onclick="savePDF()" style="padding:12px 28px;font-size:13px">Print / Save PDF</button>
   </div>
 
   <div id="quoteOutput">
@@ -485,25 +489,7 @@ function showEdit() {
 }
 
 function savePDF() {
-  const content = document.getElementById("quoteOutput").innerHTML;
-  const clientN = document.getElementById("clientName").value || "Craic & the Carriage";
-  const w = window.open("","_blank");
-  w.document.write(`<!DOCTYPE html><html><head><title>Quote \u2014 ${clientN}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Raleway:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      @page { margin: 0.25in; size: letter; }
-      html, body { margin: 0; font-family: Raleway, sans-serif; height: 100%; }
-      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .quote-page { background: transparent; position: relative; overflow: hidden; }
-      .quote-inner { position: relative; z-index: 1; padding: 10px 28px 12px; font-size: 13px; }
-      .quote-gold-rule { height: 1px; background: linear-gradient(90deg, transparent, #c49a6c, transparent); margin: 5px auto; max-width: 220px; }
-      .quote-card { background: white; border: 1px solid #e8e2da; border-radius: 5px; padding: 12px 18px; margin-bottom: 8px; }
-      .quote-section-label { font-size: 7px; color: #c49a6c; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; margin: 0 0 5px; }
-      .quote-footer-rule { height: 1px; background: linear-gradient(90deg, transparent, #c49a6c, transparent); width: 180px; margin: 0 auto 6px; }
-    </style>
-  </head><body>${content}</body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 600);
+  window.print();
 }
 
 window.onload = init;
