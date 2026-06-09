@@ -91,6 +91,27 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
   </div>
 
   <div class="sec">
+    <h2>Bar Selection</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="addon-item active" id="bar_carriage" onclick="selectBar('carriage')" style="flex-direction:column;text-align:center;padding:14px 10px">
+        <div class="addon-check" style="margin-bottom:6px">&check;</div>
+        <span style="font-size:13px;font-weight:600;color:#2a2420">The Carriage</span>
+        <span style="font-size:11px;color:#8a7e72">Full trailer bar</span>
+      </div>
+      <div class="addon-item" id="bar_satellite" onclick="selectBar('satellite')" style="flex-direction:column;text-align:center;padding:14px 10px">
+        <div class="addon-check" style="margin-bottom:6px"></div>
+        <span style="font-size:13px;font-weight:600;color:#2a2420">Satellite Bar</span>
+        <span style="font-size:11px;color:#8a7e72">Folding bar — $100/hr</span>
+      </div>
+      <div class="addon-item" id="bar_both" onclick="selectBar('both')" style="flex-direction:column;text-align:center;padding:14px 10px">
+        <div class="addon-check" style="margin-bottom:6px"></div>
+        <span style="font-size:13px;font-weight:600;color:#2a2420">Both</span>
+        <span style="font-size:11px;color:#8a7e72">Carriage + Satellite</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
     <h2>Package</h2>
     <div class="field" style="margin-bottom:8px"><label>Select Package</label>
       <select id="pkgSelect" onchange="onPkgChange()">
@@ -99,6 +120,14 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
         <option value="better_time" selected>A BETTER TIME $650</option>
         <option value="the_craic">THE CRAIC $1,000</option>
       </select>
+    </div>
+    <div id="durationField" style="display:none" class="row">
+      <div class="field"><label>Event Duration (hours)</label><input type="number" id="eventHours" value="4" min="1" onchange="calc()"></div>
+      <div class="field"><label>Satellite Bar Rate</label><div class="computed" style="padding:10px 14px;border-radius:4px" id="satRate">$100/hr</div></div>
+      <div class="field"><label>Bar Cost</label><div class="computed" style="padding:10px 14px;border-radius:4px;font-weight:600" id="satCost">$400</div></div>
+    </div>
+    <div id="bothField" style="display:none" class="row">
+      <div class="field"><label>Satellite Bar Add-On</label><div class="computed" style="padding:10px 14px;border-radius:4px;font-weight:600">$150 flat</div></div>
     </div>
     <div id="hourlyFields" style="display:none" class="row">
       <div class="field"><label>Hours</label><input type="number" id="hours" value="3" min="3" onchange="calc()"></div>
@@ -253,12 +282,16 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
 <script>
 const PACKAGES = {
   bartender: { name:"BARTENDER & THE CARRIAGE", basePrice:0, perGuest:0, hourlyRate:160, bartenderRate:40, minHours:3, hours:3, isHourly:true,
+    satRate:100, satRateCraic:100,
     desc:"Dry hire: Mobile bar with supplied power, refrigeration, lights and speaker, ice well, bar tools, 1 licensed and insured bartender per 50 guests, and 1 hightop whiskey barrel. Client provides everything else." },
   good_time: { name:"A GOOD TIME", basePrice:650, perGuest:6, hours:4, isHourly:false,
+    satRate:100, satRateCraic:100,
     desc:"Electricity and refrigeration, 1 high top keg table, 4 hours of service, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 2 non-alcoholic beverages/mixers with matching garnishes, custom bar menu signs, all cups, napkins, straws and ice." },
   better_time: { name:"A BETTER TIME", basePrice:650, perGuest:9, hours:4, isHourly:false,
+    satRate:100, satRateCraic:100,
     desc:"Electricity and refrigeration, 1 high top keg table, 4 hours of service, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 4 mixers, 2 handcrafted cocktail options with homemade syrups and elevated garnishes, custom bar menu signs, all cups, napkins, straws and ice." },
   the_craic: { name:"THE CRAIC", basePrice:1000, perGuest:12, hours:5, isHourly:false,
+    satRate:150, satRateCraic:150,
     desc:"2 certified and insured bartenders, 3 specialty cocktails, 1 specialty mocktail, fresh and dehydrated garnishes, homemade syrups, unlimited mixers, signature signage and menus, customized decor, a 5\' x 7\' floral backdrop for photos with choice of neon sign, and an extra high top whiskey barrel." }
 };
 
@@ -277,6 +310,18 @@ const ADDONS = [
 
 let selectedAddons = {};
 let addonQtys = {};
+let selectedBar = "carriage"; // carriage, satellite, both
+
+function selectBar(type) {
+  selectedBar = type;
+  ["carriage","satellite","both"].forEach(t => {
+    const el = document.getElementById("bar_"+t);
+    el.classList.toggle("active", t === type);
+    el.querySelector(".addon-check").textContent = t === type ? "\u2713" : "";
+  });
+  onPkgChange();
+  calc();
+}
 
 function formatDate(d) {
   if (!d) return "\u2014";
@@ -332,13 +377,52 @@ function buildAddonGrid() {
 function onPkgChange() {
   const key = document.getElementById("pkgSelect").value;
   const pkg = PACKAGES[key];
-  document.getElementById("hourlyFields").style.display = pkg.isHourly ? "flex" : "none";
+  
+  // Update dropdown labels based on bar selection
+  const sel = document.getElementById("pkgSelect");
+  const isSat = selectedBar === "satellite";
+  sel.options[0].textContent = "BARTENDER & THE CARRIAGE " + (isSat ? "$100/hr" : "$160/hr");
+  sel.options[1].textContent = "A GOOD TIME " + (isSat ? "$100/hr" : "$650");
+  sel.options[2].textContent = "A BETTER TIME " + (isSat ? "$100/hr" : "$650");
+  sel.options[3].textContent = "THE CRAIC " + (isSat ? "$150/hr" : "$1,000");
+  
+  // Show/hide hourly vs guest fields
+  document.getElementById("hourlyFields").style.display = (pkg.isHourly && !isSat) ? "flex" : "none";
   document.getElementById("guestFields").style.display = pkg.isHourly ? "none" : "flex";
+  
   if (!pkg.isHourly) {
     document.getElementById("perGuest").textContent = "$" + pkg.perGuest;
   }
-  if (pkg.hours) document.getElementById("hours").value = pkg.hours;
-  document.getElementById("pkgDesc").textContent = pkg.desc;
+  
+  // Event duration for satellite
+  document.getElementById("durationField").style.display = isSat ? "flex" : "none";
+  
+  // Both: flat $150 add-on
+  document.getElementById("bothField").style.display = (selectedBar === "both") ? "flex" : "none";
+  
+  // Set default hours based on package
+  if (pkg.hours) {
+    document.getElementById("eventHours").value = pkg.hours;
+    if (pkg.isHourly) document.getElementById("hours").value = pkg.hours;
+  }
+  
+  // Update satellite rate display
+  const rate = key === "the_craic" ? 150 : 100;
+  document.getElementById("satRate").textContent = "$" + rate + "/hr";
+  
+  // Update description based on bar selection
+  if (isSat) {
+    const satDescs = {
+      bartender: "Dry hire: Premium folding bar, 1 whiskey barrel high-top, bar tools, 1 licensed and insured bartender per 50 guests. Client provides everything else.",
+      good_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 2 non-alcoholic beverages/mixers with matching garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
+      better_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 4 mixers, 2 handcrafted cocktail options with homemade syrups and elevated garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
+      the_craic: "Premium folding bar, 1 whiskey barrel high-top, 2 certified and insured bartenders, 3 specialty cocktails, 1 specialty mocktail, fresh and dehydrated garnishes, homemade syrups, unlimited mixers, signature signage and menus, customized decor."
+    };
+    document.getElementById("pkgDesc").textContent = satDescs[key] || pkg.desc;
+  } else {
+    document.getElementById("pkgDesc").textContent = pkg.desc;
+  }
+  
   calc();
 }
 
@@ -358,15 +442,49 @@ function calc() {
   const key = document.getElementById("pkgSelect").value;
   const pkg = PACKAGES[key];
   let pkgAmt = 0;
-  if (pkg.isHourly) {
-    const hrs = Math.max(pkg.minHours, parseInt(document.getElementById("hours").value)||3);
-    const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
-    pkgAmt = (pkg.hourlyRate * hrs) + (pkg.bartenderRate * barts * hrs);
-    document.getElementById("hourlyAmount").textContent = currency(pkgAmt);
+  let barCost = 0;
+  
+  if (selectedBar === "satellite") {
+    // Satellite only: hourly rate × duration + per guest
+    const eventHrs = Math.max(1, parseInt(document.getElementById("eventHours").value)||4);
+    const rate = key === "the_craic" ? 150 : 100;
+    barCost = rate * eventHrs;
+    document.getElementById("satCost").textContent = currency(barCost);
+    
+    if (pkg.isHourly) {
+      // Bartender package with satellite: satellite hourly replaces trailer hourly
+      const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
+      pkgAmt = barCost + (pkg.bartenderRate * barts * eventHrs);
+    } else {
+      const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
+      pkgAmt = barCost + (pkg.perGuest * guests);
+      document.getElementById("guestAmount").textContent = currency(pkgAmt);
+    }
+  } else if (selectedBar === "both") {
+    // Both: normal package price + $150 flat
+    barCost = 150;
+    if (pkg.isHourly) {
+      const hrs = Math.max(pkg.minHours, parseInt(document.getElementById("hours").value)||3);
+      const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
+      pkgAmt = (pkg.hourlyRate * hrs) + (pkg.bartenderRate * barts * hrs) + barCost;
+      document.getElementById("hourlyAmount").textContent = currency(pkgAmt);
+    } else {
+      const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
+      pkgAmt = pkg.basePrice + (pkg.perGuest * guests) + barCost;
+      document.getElementById("guestAmount").textContent = currency(pkgAmt);
+    }
   } else {
-    const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
-    pkgAmt = pkg.basePrice + (pkg.perGuest * guests);
-    document.getElementById("guestAmount").textContent = currency(pkgAmt);
+    // Carriage only: normal pricing
+    if (pkg.isHourly) {
+      const hrs = Math.max(pkg.minHours, parseInt(document.getElementById("hours").value)||3);
+      const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
+      pkgAmt = (pkg.hourlyRate * hrs) + (pkg.bartenderRate * barts * hrs);
+      document.getElementById("hourlyAmount").textContent = currency(pkgAmt);
+    } else {
+      const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
+      pkgAmt = pkg.basePrice + (pkg.perGuest * guests);
+      document.getElementById("guestAmount").textContent = currency(pkgAmt);
+    }
   }
 
   let addonsTotal = 0;
@@ -426,15 +544,44 @@ function showPreview() {
   document.getElementById("qEventTime").textContent = document.getElementById("eventTime").value;
 
   let pkgAmt = 0, breakdown = "";
-  if (pkg.isHourly) {
-    const hrs = parseInt(document.getElementById("hours").value)||3;
-    const barts = parseInt(document.getElementById("bartenders").value)||1;
-    pkgAmt = (pkg.hourlyRate*hrs)+(pkg.bartenderRate*barts*hrs);
-    breakdown = "$"+pkg.hourlyRate+"/hr \u00d7 "+hrs+" hrs + $"+pkg.bartenderRate+"/hr \u00d7 "+barts+" bartender"+(barts>1?"s":"");
+  const barLabel = selectedBar === "satellite" ? "Satellite Bar" : selectedBar === "both" ? "Carriage + Satellite Bar" : "The Carriage";
+  
+  if (selectedBar === "satellite") {
+    const eventHrs = parseInt(document.getElementById("eventHours").value)||4;
+    const rate = key === "the_craic" ? 150 : 100;
+    const barCost = rate * eventHrs;
+    
+    if (pkg.isHourly) {
+      const barts = parseInt(document.getElementById("bartenders").value)||1;
+      pkgAmt = barCost + (pkg.bartenderRate * barts * eventHrs);
+      breakdown = barLabel + ": $" + rate + "/hr \u00d7 " + eventHrs + " hrs + $" + pkg.bartenderRate + "/hr \u00d7 " + barts + " bartender" + (barts>1?"s":"");
+    } else {
+      const guests = parseInt(document.getElementById("guestCount").value)||1;
+      pkgAmt = barCost + (pkg.perGuest * guests);
+      breakdown = barLabel + ": $" + rate + "/hr \u00d7 " + eventHrs + " hrs + $" + pkg.perGuest + " \u00d7 " + guests + " guests";
+    }
+  } else if (selectedBar === "both") {
+    if (pkg.isHourly) {
+      const hrs = parseInt(document.getElementById("hours").value)||3;
+      const barts = parseInt(document.getElementById("bartenders").value)||1;
+      pkgAmt = (pkg.hourlyRate*hrs)+(pkg.bartenderRate*barts*hrs)+150;
+      breakdown = barLabel + ": $"+pkg.hourlyRate+"/hr \u00d7 "+hrs+" hrs + $"+pkg.bartenderRate+"/hr \u00d7 "+barts+" bartender"+(barts>1?"s":"")+" + $150 satellite";
+    } else {
+      const guests = parseInt(document.getElementById("guestCount").value)||1;
+      pkgAmt = pkg.basePrice+(pkg.perGuest*guests)+150;
+      breakdown = barLabel + ": Base $"+pkg.basePrice+" + $"+pkg.perGuest+" \u00d7 "+guests+" guests + $150 satellite";
+    }
   } else {
-    const guests = parseInt(document.getElementById("guestCount").value)||1;
-    pkgAmt = pkg.basePrice+(pkg.perGuest*guests);
-    breakdown = "Base $"+pkg.basePrice+" + $"+pkg.perGuest+" \u00d7 "+guests+" guests";
+    if (pkg.isHourly) {
+      const hrs = parseInt(document.getElementById("hours").value)||3;
+      const barts = parseInt(document.getElementById("bartenders").value)||1;
+      pkgAmt = (pkg.hourlyRate*hrs)+(pkg.bartenderRate*barts*hrs);
+      breakdown = barLabel + ": $"+pkg.hourlyRate+"/hr \u00d7 "+hrs+" hrs + $"+pkg.bartenderRate+"/hr \u00d7 "+barts+" bartender"+(barts>1?"s":"");
+    } else {
+      const guests = parseInt(document.getElementById("guestCount").value)||1;
+      pkgAmt = pkg.basePrice+(pkg.perGuest*guests);
+      breakdown = barLabel + ": Base $"+pkg.basePrice+" + $"+pkg.perGuest+" \u00d7 "+guests+" guests";
+    }
   }
 
   document.getElementById("qPkgName").textContent = pkg.name;
