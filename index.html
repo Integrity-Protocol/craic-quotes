@@ -302,6 +302,7 @@ const ADDONS = [
   {id:"signage",name:"Personalized Custom Signage",price:25},
   {id:"backdrop",name:"5' x 7' Floral Backdrop + Neon Sign",price:150},
   {id:"bartender_extra",name:"Additional Bartender (per hour)",price:40,hasQty:true},
+  {id:"barback",name:"Additional Barback (per hour)",price:25,hasQty:true},
   {id:"extra_hour",name:"Additional Hour of Service",price:100,hasQty:true},
   {id:"draft_line",name:"Additional Draft Beer Line",price:50},
   {id:"speaker_mic",name:"Speaker with Microphone & Stand",price:50},
@@ -587,7 +588,19 @@ function showPreview() {
   document.getElementById("qPkgName").textContent = pkg.name;
   document.getElementById("qPkgBreakdown").textContent = breakdown;
   document.getElementById("qPkgAmount").textContent = currency(pkgAmt);
-  document.getElementById("qPkgDesc").textContent = pkg.desc;
+  
+  // Use satellite descriptions when satellite is selected
+  if (selectedBar === "satellite") {
+    const satDescs = {
+      bartender: "Dry hire: Premium folding bar, 1 whiskey barrel high-top, bar tools, 1 licensed and insured bartender per 50 guests. Client provides everything else.",
+      good_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 2 non-alcoholic beverages/mixers with matching garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
+      better_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 4 mixers, 2 handcrafted cocktail options with homemade syrups and elevated garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
+      the_craic: "Premium folding bar, 1 whiskey barrel high-top, 2 certified and insured bartenders, 3 specialty cocktails, 1 specialty mocktail, fresh and dehydrated garnishes, homemade syrups, unlimited mixers, signature signage and menus, customized decor."
+    };
+    document.getElementById("qPkgDesc").textContent = satDescs[key] || pkg.desc;
+  } else {
+    document.getElementById("qPkgDesc").textContent = pkg.desc;
+  }
 
   // Addons
   let addonsTotal = 0;
