@@ -29,6 +29,11 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
 .addon-name{font-size:12px;flex:1}
 .addon-price{font-size:12px;font-weight:600;color:#5c4033}
 .addon-qty{width:44px!important;padding:2px 4px!important;font-size:12px!important;border:1px solid #c49a6c!important;border-radius:3px;text-align:center}
+.addon-controls{display:none;align-items:center;gap:4px;font-size:10px;color:#8a7e72;white-space:nowrap}
+.addon-item.active .addon-controls{display:flex}
+.custom-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.custom-row input{padding:8px 10px;font-size:13px}
+.custom-row .rm{flex:0 0 auto;width:32px;height:34px;border:1px solid #d4cdc4;background:#fff;border-radius:4px;color:#8a7e72;font-size:16px;cursor:pointer;font-family:inherit}
 
 .total-bar{background:linear-gradient(135deg,#f8f4ef,#efe8dd);border-radius:8px;padding:20px 24px;margin-top:20px;display:flex;justify-content:space-between;align-items:center;border:1px solid #e0d7cc}
 .total-label{font-size:12px;color:#8a7e72;letter-spacing:0.08em;text-transform:uppercase}
@@ -174,11 +179,14 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
       <div class="field"><label>Amount</label><div class="computed" style="padding:10px 14px;border-radius:4px;font-weight:600" id="guestAmount">$1,190</div></div>
     </div>
     <p id="pkgDesc" style="font-size:12px;color:#8a7e72;line-height:1.7;margin-top:8px"></p>
+    <p id="staffNudge" style="display:none;font-size:12px;color:#a0522d;line-height:1.6;margin-top:6px;padding:8px 12px;background:#fdf6f0;border-left:2px solid #c49a6c;border-radius:0 4px 4px 0"></p>
   </div>
 
   <div class="sec">
     <h2>Add-Ons</h2>
     <div class="addon-grid" id="addonGrid"></div>
+    <div id="customItems" style="margin-top:10px"></div>
+    <button class="btn btn-secondary" style="padding:8px 14px;font-size:10px" onclick="addCustomItem()">+ Custom Item</button>
   </div>
 
   <div class="sec">
@@ -218,6 +226,12 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
   <div class="sec">
     <h2>Notes</h2>
     <textarea id="notes" placeholder="Additional notes..."></textarea>
+  </div>
+
+  <div class="sec">
+    <h2>Terms</h2>
+    <textarea id="terms" placeholder="Deposit and payment terms..."></textarea>
+    <p style="font-size:11px;color:#a89a8c;margin-top:6px;line-height:1.6">Printed under the total, after the standard dry-hire and travel lines. The valid-through date (30 days from the quote date) is added automatically. Edit freely per quote.</p>
   </div>
 
   <div class="total-bar">
@@ -314,11 +328,17 @@ input:focus,select:focus,textarea:focus{border-color:#c49a6c}
         </div>
 
         <div style="margin-top:8px;margin-bottom:20px">
+          <div id="qSubtotalRow" style="display:none;justify-content:flex-end;gap:20px;padding:4px 0;font-size:13px;color:#5c5550"><span>Subtotal</span><span id="qSubtotal" style="font-weight:500;min-width:72px;text-align:right"></span></div>
           <div id="qDiscountRow" style="display:none"></div>
           <div style="display:flex;justify-content:flex-end;align-items:center;gap:24px;padding:16px 0;border-top:2px solid #2a2420;margin-top:4px">
             <span style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:600;letter-spacing:0.1em">Total</span>
             <span id="qTotal" style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:700;color:#2a2420"></span>
           </div>
+        </div>
+
+        <div class="quote-card" style="margin-bottom:20px;background:#fdfbf8">
+          <p class="quote-section-label" style="margin-bottom:8px">Terms</p>
+          <p id="qTerms" style="font-size:10.5px;color:#5c5550;line-height:1.75;margin:0"></p>
         </div>
 
         <div id="qNotesSection" style="display:none">
@@ -369,16 +389,23 @@ const ADDONS = [
   {id:"coffee",name:"Coffee Bar",price:75},
   {id:"signage",name:"Personalized Custom Signage",price:25},
   {id:"backdrop",name:"5' x 7' Floral Backdrop + Neon Sign",price:150},
-  {id:"bartender_extra",name:"Additional Bartender (per hour)",price:40,hasQty:true},
-  {id:"barback",name:"Additional Barback (per hour)",price:25,hasQty:true},
+  {id:"bartender_extra",name:"Additional Bartender",price:40,hasQty:true,hasHours:true,unit:"hr"},
+  {id:"barback",name:"Additional Barback",price:25,hasQty:true,hasHours:true,unit:"hr"},
   {id:"extra_hour",name:"Additional Hour of Service",price:100,hasQty:true},
   {id:"draft_line",name:"Additional Draft Beer Line",price:50},
   {id:"speaker_mic",name:"Speaker with Microphone & Stand",price:50},
-  {id:"miles",name:"Additional Miles (per mile)",price:1.50,hasQty:true}
+  {id:"miles",name:"Additional Miles",price:1.50,hasQty:true,unit:"mi"}
 ];
+
+const QUOTE_VALID_DAYS = 30;
+const DRY_HIRE_LINE = "You supply the alcohol, we turn it into an unforgettable experience. A detailed shopping list is provided with your booking. Alcohol is not included in this quote.";
+const TRAVEL_LINE = "Travel within 50 miles is included; additional miles are billed at $1.50 per mile.";
+const DEFAULT_TERMS = "A $250 non-refundable retainer reserves your date and is applied to your final balance. The remaining balance is due 7 days before the event.";
 
 let selectedAddons = {};
 let addonQtys = {};
+let addonHours = {};
+let customItems = [];   // [{name, price, qty}]
 let selectedBar = "carriage"; // carriage, satellite, both
 
 function selectBar(type) {
@@ -386,14 +413,14 @@ function selectBar(type) {
   ["carriage","satellite","both"].forEach(t => {
     const el = document.getElementById("bar_"+t);
     el.classList.toggle("active", t === type);
-    el.querySelector(".addon-check").textContent = t === type ? "\u2713" : "";
+    el.querySelector(".addon-check").textContent = t === type ? "✓" : "";
   });
   onPkgChange();
   calc();
 }
 
 function formatDate(d) {
-  if (!d) return "\u2014";
+  if (!d) return "—";
   const date = new Date(d + "T12:00:00");
   const m = date.toLocaleString("en-US",{month:"long"});
   const day = date.getDate();
@@ -402,16 +429,39 @@ function formatDate(d) {
   return m+" "+day+s+", "+yr;
 }
 
-function currency(n) { return "$"+n.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0}); }
+function addDays(iso, n) {
+  const d = new Date(iso + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+
+function currency(n) {
+  const c = Math.round((Number(n)||0) * 100) / 100;
+  const whole = Math.abs(c - Math.round(c)) < 0.005;
+  const digits = whole ? 0 : 2;
+  const s = Math.abs(c).toLocaleString("en-US",{minimumFractionDigits:digits,maximumFractionDigits:digits});
+  return (c < 0 ? "−$" : "$") + s;
+}
+
+function priceLabel(a) { return currency(a.price) + (a.unit ? "/" + a.unit : ""); }
 
 function init() {
-  const now = new Date();
-  document.getElementById("quoteDate").value = now.toISOString().split("T")[0];
+  document.getElementById("quoteDate").value = todayISO();
+  document.getElementById("terms").value = DEFAULT_TERMS;
   applying = true; // don't let the initial calc() overwrite a saved draft before startup() reads it
   buildAddonGrid();
+  renderCustomItems();
   onPkgChange();
   calc();
   startup();
+}
+
+// Hours an add-on bartender/barback works by default: the length of the event
+function serviceHours() {
+  const pkg = PACKAGES[document.getElementById("pkgSelect").value];
+  if (selectedBar === "satellite") return Math.max(1, parseInt(document.getElementById("eventHours").value)||pkg.hours||4);
+  if (pkg.isHourly) return Math.max(pkg.minHours, parseInt(document.getElementById("hours").value)||pkg.minHours);
+  return pkg.hours || 4;
 }
 
 function buildAddonGrid() {
@@ -421,27 +471,76 @@ function buildAddonGrid() {
     const div = document.createElement("div");
     div.className = "addon-item";
     div.dataset.id = a.id;
-    div.innerHTML = '<div class="addon-check"></div><span class="addon-name">'+a.name+'</span><span class="addon-price">$'+a.price+'</span>';
+    div.innerHTML = '<div class="addon-check"></div><span class="addon-name">'+a.name+'</span><span class="addon-price">'+priceLabel(a)+'</span>';
     if (a.hasQty) {
+      const ctl = document.createElement("span");
+      ctl.className = "addon-controls";
+      ctl.onclick = e => e.stopPropagation();
       const qi = document.createElement("input");
-      qi.type = "number"; qi.min = 1; qi.value = 1; qi.className = "addon-qty";
-      qi.style.display = "none";
-      qi.onclick = e => e.stopPropagation();
-      qi.onchange = () => { addonQtys[a.id] = Math.max(1,parseInt(qi.value)||1); calc(); };
-      div.appendChild(qi);
+      qi.type = "number"; qi.min = 1; qi.value = 1; qi.className = "addon-qty"; qi.inputMode = "numeric";
+      qi.onchange = () => { addonQtys[a.id] = Math.max(1,parseInt(qi.value)||1); qi.value = addonQtys[a.id]; calc(); };
+      ctl.appendChild(qi);
+      if (a.hasHours) {
+        const x = document.createElement("span"); x.textContent = "×"; ctl.appendChild(x);
+        const hi = document.createElement("input");
+        hi.type = "number"; hi.min = 1; hi.value = 4; hi.className = "addon-qty addon-hrs"; hi.inputMode = "numeric";
+        hi.onchange = () => { addonHours[a.id] = Math.max(1,parseInt(hi.value)||1); hi.value = addonHours[a.id]; calc(); };
+        ctl.appendChild(hi);
+        const u = document.createElement("span"); u.textContent = "hrs"; ctl.appendChild(u);
+      }
+      div.appendChild(ctl);
     }
     div.onclick = () => {
       selectedAddons[a.id] = !selectedAddons[a.id];
       div.classList.toggle("active", selectedAddons[a.id]);
-      div.querySelector(".addon-check").textContent = selectedAddons[a.id] ? "\u2713" : "";
-      if (a.hasQty) {
-        const q = div.querySelector(".addon-qty");
-        q.style.display = selectedAddons[a.id] ? "block" : "none";
-        if (selectedAddons[a.id] && !addonQtys[a.id]) addonQtys[a.id] = 1;
+      div.querySelector(".addon-check").textContent = selectedAddons[a.id] ? "✓" : "";
+      if (a.hasQty && selectedAddons[a.id]) {
+        if (!addonQtys[a.id]) addonQtys[a.id] = 1;
+        if (a.hasHours && !addonHours[a.id]) addonHours[a.id] = serviceHours();
+        syncAddonUI();
       }
       calc();
     };
     grid.appendChild(div);
+  });
+}
+
+/* ---------- Custom line items ---------- */
+function addCustomItem() {
+  customItems.push({name:"", price:"", qty:1});
+  renderCustomItems();
+  const rows = document.querySelectorAll("#customItems .custom-row");
+  const last = rows[rows.length-1];
+  if (last) last.querySelector("input").focus();
+  calc();
+}
+
+function removeCustomItem(i) {
+  customItems.splice(i, 1);
+  renderCustomItems();
+  calc();
+}
+
+function renderCustomItems() {
+  const box = document.getElementById("customItems");
+  box.innerHTML = "";
+  customItems.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "custom-row";
+    const name = document.createElement("input");
+    name.placeholder = "Custom item (e.g. Signature mocktail station)"; name.value = c.name || ""; name.style.flex = "2";
+    name.oninput = () => { c.name = name.value; calc(); };
+    const price = document.createElement("input");
+    price.type = "number"; price.min = 0; price.step = "0.01"; price.placeholder = "$"; price.inputMode = "decimal"; price.value = c.price === "" ? "" : c.price; price.style.flex = "0.7";
+    price.oninput = () => { c.price = price.value; calc(); };
+    const qty = document.createElement("input");
+    qty.type = "number"; qty.min = 1; qty.value = c.qty || 1; qty.inputMode = "numeric"; qty.style.flex = "0.45"; qty.title = "Quantity";
+    qty.onchange = () => { c.qty = Math.max(1, parseInt(qty.value)||1); qty.value = c.qty; calc(); };
+    const rm = document.createElement("button");
+    rm.className = "rm"; rm.innerHTML = "&times;"; rm.title = "Remove";
+    rm.onclick = () => removeCustomItem(i);
+    row.appendChild(name); row.appendChild(price); row.appendChild(qty); row.appendChild(rm);
+    box.appendChild(row);
   });
 }
 
@@ -509,165 +608,132 @@ function toggleDiscount(type) {
   calc();
 }
 
-function calc() {
+/* ---------- One pricing engine, used by the edit screen and the PDF ---------- */
+function computePricing() {
   const key = document.getElementById("pkgSelect").value;
   const pkg = PACKAGES[key];
-  let pkgAmt = 0;
-  let barCost = 0;
-  
+  const r2 = x => Math.round(x * 100) / 100;
+  const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
+  const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
+  const hrs = Math.max(pkg.minHours||1, parseInt(document.getElementById("hours").value)||(pkg.minHours||3));
+  const eventHrs = Math.max(1, parseInt(document.getElementById("eventHours").value)||(pkg.hours||4));
+  const satRate = key === "the_craic" ? 150 : 100;
+  const barLabel = selectedBar === "satellite" ? "Satellite Bar" : selectedBar === "both" ? "Carriage + Satellite Bar" : "The Carriage";
+  const bt = n => n + " bartender" + (n === 1 ? "" : "s");
+
+  let pkgAmt = 0, breakdown = "", discountBase = 0, svcHours = pkg.hours || 4, satCost = 0;
   if (selectedBar === "satellite") {
-    // Satellite only: hourly rate × duration + per guest
-    const eventHrs = Math.max(1, parseInt(document.getElementById("eventHours").value)||4);
-    const rate = key === "the_craic" ? 150 : 100;
-    barCost = rate * eventHrs;
-    document.getElementById("satCost").textContent = currency(barCost);
-    
+    satCost = satRate * eventHrs;
+    discountBase = satCost; svcHours = eventHrs;
     if (pkg.isHourly) {
-      // Bartender package with satellite: satellite hourly replaces trailer hourly
-      const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
-      pkgAmt = barCost + (pkg.bartenderRate * barts * eventHrs);
+      pkgAmt = satCost + pkg.bartenderRate * barts * eventHrs;
+      breakdown = barLabel + ": $" + satRate + "/hr × " + eventHrs + " hrs + $" + pkg.bartenderRate + "/hr × " + bt(barts);
     } else {
-      const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
-      pkgAmt = barCost + (pkg.perGuest * guests);
-      document.getElementById("guestAmount").textContent = currency(pkgAmt);
-    }
-  } else if (selectedBar === "both") {
-    // Both: normal package price + $150 flat
-    barCost = 150;
-    if (pkg.isHourly) {
-      const hrs = Math.max(pkg.minHours, parseInt(document.getElementById("hours").value)||3);
-      const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
-      pkgAmt = (pkg.hourlyRate * hrs) + (pkg.bartenderRate * barts * hrs) + barCost;
-      document.getElementById("hourlyAmount").textContent = currency(pkgAmt);
-    } else {
-      const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
-      pkgAmt = pkg.basePrice + (pkg.perGuest * guests) + barCost;
-      document.getElementById("guestAmount").textContent = currency(pkgAmt);
+      pkgAmt = satCost + pkg.perGuest * guests;
+      breakdown = barLabel + ": $" + satRate + "/hr × " + eventHrs + " hrs + $" + pkg.perGuest + " × " + guests + " guests";
     }
   } else {
-    // Carriage only: normal pricing
+    const extra = selectedBar === "both" ? 150 : 0, extraLbl = extra ? " + $150 satellite" : "";
     if (pkg.isHourly) {
-      const hrs = Math.max(pkg.minHours, parseInt(document.getElementById("hours").value)||3);
-      const barts = Math.max(1, parseInt(document.getElementById("bartenders").value)||1);
-      pkgAmt = (pkg.hourlyRate * hrs) + (pkg.bartenderRate * barts * hrs);
-      document.getElementById("hourlyAmount").textContent = currency(pkgAmt);
+      discountBase = pkg.hourlyRate * hrs; svcHours = hrs;
+      pkgAmt = discountBase + pkg.bartenderRate * barts * hrs + extra;
+      breakdown = barLabel + ": $" + pkg.hourlyRate + "/hr × " + hrs + " hrs + $" + pkg.bartenderRate + "/hr × " + bt(barts) + extraLbl;
     } else {
-      const guests = Math.max(1, parseInt(document.getElementById("guestCount").value)||1);
-      pkgAmt = pkg.basePrice + (pkg.perGuest * guests);
-      document.getElementById("guestAmount").textContent = currency(pkgAmt);
+      discountBase = pkg.basePrice;
+      pkgAmt = pkg.basePrice + pkg.perGuest * guests + extra;
+      breakdown = barLabel + ": Base $" + pkg.basePrice + " + $" + pkg.perGuest + " × " + guests + " guests" + extraLbl;
     }
   }
 
-  let addonsTotal = 0;
+  // Add-ons
+  const items = [];
   ADDONS.forEach(a => {
-    if (selectedAddons[a.id]) {
-      addonsTotal += a.price * (addonQtys[a.id] || 1);
-    }
+    if (!selectedAddons[a.id]) return;
+    const qty = a.hasQty ? (addonQtys[a.id] || 1) : 1;
+    const h = a.hasHours ? (addonHours[a.id] || svcHours) : 1;
+    let label = a.name;
+    if (a.hasHours) label += " × " + qty + " × " + h + " hr" + (h === 1 ? "" : "s");
+    else if (a.unit === "mi") label += " × " + qty + " mi";
+    else if (qty > 1) label += " × " + qty;
+    items.push({ id: a.id, label: label, total: r2(a.price * qty * h) });
+  });
+  customItems.forEach(c => {
+    const p = parseFloat(c.price) || 0, q = Math.max(1, parseInt(c.qty) || 1);
+    if (!String(c.name || "").trim() && !p) return;
+    items.push({ id: "custom", label: (String(c.name || "").trim() || "Custom item") + (q > 1 ? " × " + q : ""), total: r2(p * q) });
+  });
+  const addonsTotal = r2(items.reduce((s, i) => s + i.total, 0));
+  const subtotal = r2(pkgAmt + addonsTotal);
+
+  // Discounts
+  const discounts = [];
+  if (activeDiscounts.first) discounts.push({ type: "first", label: "20% off base price — first time client", amount: r2(discountBase * 0.2) });
+  if (activeDiscounts.service) discounts.push({ type: "service", label: "10% off base price — Fire, Police, Military", amount: r2(discountBase * 0.1) });
+  if (activeDiscounts.pct) {
+    const pct = Math.max(0, parseFloat(document.getElementById("customPct").value) || 0);
+    discounts.push({ type: "pct", label: (document.getElementById("customPctLabel").value || "Discount") + " (" + pct + "%)", amount: r2(subtotal * pct / 100) });
+  }
+  if (activeDiscounts.flat) {
+    discounts.push({ type: "flat", label: document.getElementById("customFlatLabel").value || "Discount", amount: Math.max(0, r2(parseFloat(document.getElementById("customFlat").value) || 0)) });
+  }
+  const totalDiscount = r2(discounts.reduce((s, d) => s + d.amount, 0));
+  const total = Math.max(0, r2(subtotal - totalDiscount));
+
+  // Staffing check: 1 bartender per 50 guests on guest-count packages
+  const included = pkg.isHourly ? barts : (key === "the_craic" ? 2 : 1);
+  const extraBarts = selectedAddons.bartender_extra ? (addonQtys.bartender_extra || 1) : 0;
+  const staff = included + extraBarts;
+  const needed = pkg.isHourly ? 0 : Math.ceil(guests / 50);
+
+  return { key, pkg, guests, barts, hrs, eventHrs, satCost, barLabel, pkgAmt, breakdown, items, addonsTotal, subtotal, discounts, totalDiscount, total, staff, needed };
+}
+
+function calc() {
+  const p = computePricing();
+  // Hourly package: hold the input at the 3-hour minimum so the screen matches the PDF
+  if (p.pkg.isHourly && (parseInt(document.getElementById("hours").value)||0) < p.pkg.minHours) document.getElementById("hours").value = p.pkg.minHours;
+
+  document.getElementById("hourlyAmount").textContent = currency(p.pkgAmt);
+  document.getElementById("guestAmount").textContent = currency(p.pkgAmt);
+  document.getElementById("satCost").textContent = currency(p.satCost);
+
+  ["first","service","pct","flat"].forEach(t => {
+    const d = p.discounts.find(x => x.type === t);
+    document.getElementById("disc_" + t + "_amt").textContent = d ? "-" + currency(d.amount) : "";
   });
 
-  const subtotal = pkgAmt + addonsTotal;
-  const baseAmt = pkg.basePrice || pkg.hourlyRate * (parseInt(document.getElementById("hours").value)||3);
-  let totalDiscount = 0;
-  window._discountItems = [];
+  const n = document.getElementById("staffNudge");
+  if (p.needed > p.staff) {
+    const short = p.needed - p.staff;
+    n.style.display = "block";
+    n.textContent = p.guests + " guests — at 1 bartender per 50 guests this event calls for " + p.needed + ", and this quote has " + p.staff + ". Consider adding " + short + " bartender" + (short === 1 ? "" : "s") + ".";
+  } else { n.style.display = "none"; }
 
-  if (activeDiscounts.first) {
-    const amt = Math.round(baseAmt * 0.2);
-    totalDiscount += amt;
-    window._discountItems.push({label:"20% off base price \u2014 first time client", amount:amt});
-    document.getElementById("disc_first_amt").textContent = "-"+currency(amt);
-  } else { document.getElementById("disc_first_amt").textContent = ""; }
-
-  if (activeDiscounts.service) {
-    const amt = Math.round(baseAmt * 0.1);
-    totalDiscount += amt;
-    window._discountItems.push({label:"10% off base price \u2014 Fire, Police, Military", amount:amt});
-    document.getElementById("disc_service_amt").textContent = "-"+currency(amt);
-  } else { document.getElementById("disc_service_amt").textContent = ""; }
-
-  if (activeDiscounts.pct) {
-    const pct = parseInt(document.getElementById("customPct").value)||0;
-    const amt = Math.round(subtotal * (pct / 100));
-    totalDiscount += amt;
-    const lbl = (document.getElementById("customPctLabel").value||"Discount") + " ("+pct+"%)";
-    window._discountItems.push({label:lbl, amount:amt});
-    document.getElementById("disc_pct_amt").textContent = "-"+currency(amt);
-  } else { document.getElementById("disc_pct_amt").textContent = ""; }
-
-  if (activeDiscounts.flat) {
-    const amt = Math.max(0, parseInt(document.getElementById("customFlat").value)||0);
-    totalDiscount += amt;
-    const lbl = document.getElementById("customFlatLabel").value||"Discount";
-    window._discountItems.push({label:lbl, amount:amt});
-    document.getElementById("disc_flat_amt").textContent = "-"+currency(amt);
-  } else { document.getElementById("disc_flat_amt").textContent = ""; }
-
-  const total = subtotal - totalDiscount;
-  document.getElementById("editTotal").textContent = currency(total);
-  window._lastTotal = total;
+  document.getElementById("editTotal").textContent = currency(p.total);
+  window._lastTotal = p.total;
   saveDraft();
 }
 
 function showPreview() {
-  const key = document.getElementById("pkgSelect").value;
-  const pkg = PACKAGES[key];
+  const p = computePricing();
+  const pkg = p.pkg, key = p.key;
 
   document.getElementById("qDate").textContent = formatDate(document.getElementById("quoteDate").value);
   document.getElementById("qNum").textContent = currentNum ? "Quote No. " + currentNum : "";
-  document.getElementById("qClient").textContent = document.getElementById("clientName").value || "\u2014";
+  document.getElementById("qClient").textContent = document.getElementById("clientName").value || "—";
   document.getElementById("qEventDate").textContent = formatDate(document.getElementById("eventDate").value);
   document.getElementById("qEventTime").textContent = document.getElementById("eventTime").value;
 
-  let pkgAmt = 0, breakdown = "";
-  const barLabel = selectedBar === "satellite" ? "Satellite Bar" : selectedBar === "both" ? "Carriage + Satellite Bar" : "The Carriage";
-  
-  if (selectedBar === "satellite") {
-    const eventHrs = parseInt(document.getElementById("eventHours").value)||4;
-    const rate = key === "the_craic" ? 150 : 100;
-    const barCost = rate * eventHrs;
-    
-    if (pkg.isHourly) {
-      const barts = parseInt(document.getElementById("bartenders").value)||1;
-      pkgAmt = barCost + (pkg.bartenderRate * barts * eventHrs);
-      breakdown = barLabel + ": $" + rate + "/hr \u00d7 " + eventHrs + " hrs + $" + pkg.bartenderRate + "/hr \u00d7 " + barts + " bartender" + (barts>1?"s":"");
-    } else {
-      const guests = parseInt(document.getElementById("guestCount").value)||1;
-      pkgAmt = barCost + (pkg.perGuest * guests);
-      breakdown = barLabel + ": $" + rate + "/hr \u00d7 " + eventHrs + " hrs + $" + pkg.perGuest + " \u00d7 " + guests + " guests";
-    }
-  } else if (selectedBar === "both") {
-    if (pkg.isHourly) {
-      const hrs = parseInt(document.getElementById("hours").value)||3;
-      const barts = parseInt(document.getElementById("bartenders").value)||1;
-      pkgAmt = (pkg.hourlyRate*hrs)+(pkg.bartenderRate*barts*hrs)+150;
-      breakdown = barLabel + ": $"+pkg.hourlyRate+"/hr \u00d7 "+hrs+" hrs + $"+pkg.bartenderRate+"/hr \u00d7 "+barts+" bartender"+(barts>1?"s":"")+" + $150 satellite";
-    } else {
-      const guests = parseInt(document.getElementById("guestCount").value)||1;
-      pkgAmt = pkg.basePrice+(pkg.perGuest*guests)+150;
-      breakdown = barLabel + ": Base $"+pkg.basePrice+" + $"+pkg.perGuest+" \u00d7 "+guests+" guests + $150 satellite";
-    }
-  } else {
-    if (pkg.isHourly) {
-      const hrs = parseInt(document.getElementById("hours").value)||3;
-      const barts = parseInt(document.getElementById("bartenders").value)||1;
-      pkgAmt = (pkg.hourlyRate*hrs)+(pkg.bartenderRate*barts*hrs);
-      breakdown = barLabel + ": $"+pkg.hourlyRate+"/hr \u00d7 "+hrs+" hrs + $"+pkg.bartenderRate+"/hr \u00d7 "+barts+" bartender"+(barts>1?"s":"");
-    } else {
-      const guests = parseInt(document.getElementById("guestCount").value)||1;
-      pkgAmt = pkg.basePrice+(pkg.perGuest*guests);
-      breakdown = barLabel + ": Base $"+pkg.basePrice+" + $"+pkg.perGuest+" \u00d7 "+guests+" guests";
-    }
-  }
-
   document.getElementById("qPkgName").textContent = pkg.name;
-  document.getElementById("qPkgBreakdown").textContent = breakdown;
-  document.getElementById("qPkgAmount").textContent = currency(pkgAmt);
-  
+  document.getElementById("qPkgBreakdown").textContent = p.breakdown;
+  document.getElementById("qPkgAmount").textContent = currency(p.pkgAmt);
+
   // Use satellite descriptions when satellite is selected
   if (selectedBar === "satellite") {
     const satDescs = {
       bartender: "Dry hire: Premium folding bar, 1 whiskey barrel high-top, bar tools, 1 licensed and insured bartender per 50 guests. Client provides everything else.",
       good_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 2 non-alcoholic beverages/mixers with matching garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
-      better_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 4 mixers, 2 handcrafted cocktail options with homemade syrups and elevated garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
+      better_time: "Premium folding bar, 1 whiskey barrel high-top, 1 hour set up with a barback, 1 bartender, can, bottle drink service, single pour liquor, choice of 4 mixers, 2 handcrafted cocktails, matching garnishes, custom bar menu signs, all cups, napkins, straws and ice.",
       the_craic: "Premium folding bar, 1 whiskey barrel high-top, 2 certified and insured bartenders, 3 specialty cocktails, 1 specialty mocktail, fresh and dehydrated garnishes, homemade syrups, unlimited mixers, signature signage and menus, customized decor."
     };
     document.getElementById("qPkgDesc").textContent = satDescs[key] || pkg.desc;
@@ -675,37 +741,38 @@ function showPreview() {
     document.getElementById("qPkgDesc").textContent = pkg.desc;
   }
 
-  // Addons
-  let addonsTotal = 0;
-  const activeAddons = [];
-  ADDONS.forEach(a => { if(selectedAddons[a.id]){const q=addonQtys[a.id]||1;const t=a.price*q;addonsTotal+=t;activeAddons.push({...a,qty:q,total:t})} });
-
+  // Add-ons
   const aSection = document.getElementById("qAddonsSection");
   const aList = document.getElementById("qAddonsList");
-  if (activeAddons.length > 0) {
+  if (p.items.length > 0) {
     aSection.style.display = "block";
-    aList.innerHTML = activeAddons.map((a,i) =>
-      '<div style="display:flex;justify-content:space-between;padding:8px 0;'+(i<activeAddons.length-1?'border-bottom:1px solid #f5f0ea':'')+';font-size:14px;color:#2a2420"><span>'+a.name+(a.qty>1?' \u00d7 '+a.qty:'')+'</span><span style="font-weight:500">'+currency(a.total)+'</span></div>'
+    aList.innerHTML = p.items.map((a, i) =>
+      '<div style="display:flex;justify-content:space-between;padding:8px 0;' + (i < p.items.length - 1 ? 'border-bottom:1px solid #f5f0ea' : '') + ';font-size:14px;color:#2a2420"><span>' + esc(a.label) + '</span><span style="font-weight:500">' + currency(a.total) + '</span></div>'
     ).join("");
   } else { aSection.style.display = "none"; }
 
-  // Discount
-  const subtotal = pkgAmt + addonsTotal;
-  const discItems = window._discountItems || [];
+  // Subtotal / discounts / total
+  const sRow = document.getElementById("qSubtotalRow");
   const dRow = document.getElementById("qDiscountRow");
-  let totalDiscount = 0;
-
-  if (discItems.length > 0) {
+  if (p.discounts.length > 0) {
+    sRow.style.display = "flex";
+    document.getElementById("qSubtotal").textContent = currency(p.subtotal);
     dRow.style.display = "block";
-    dRow.innerHTML = discItems.map(d => {
-      totalDiscount += d.amount;
-      return '<div style="display:flex;justify-content:flex-end;gap:20px;padding:4px 0;font-size:13px;color:#7a716a"><span style="font-style:italic">'+d.label+'</span><span style="text-decoration:line-through;color:#c49a6c;font-weight:500">'+currency(d.amount)+'</span></div>';
-    }).join("");
+    dRow.innerHTML = p.discounts.map(d =>
+      '<div style="display:flex;justify-content:flex-end;gap:20px;padding:4px 0;font-size:13px;color:#7a716a"><span style="font-style:italic">' + esc(d.label) + '</span><span style="min-width:72px;text-align:right;color:#8a6a3a;font-weight:500">' + currency(-d.amount) + '</span></div>'
+    ).join("");
   } else {
+    sRow.style.display = "none";
     dRow.style.display = "none";
   }
+  document.getElementById("qTotal").textContent = currency(p.total);
 
-  document.getElementById("qTotal").textContent = currency(subtotal - totalDiscount);
+  // Terms
+  const qd = document.getElementById("quoteDate").value || todayISO();
+  const lines = [DRY_HIRE_LINE, TRAVEL_LINE, "This quote is valid through " + formatDate(addDays(qd, QUOTE_VALID_DAYS)) + "."];
+  const t = document.getElementById("terms").value.trim();
+  if (t) lines.push(esc(t).replace(/\n/g, "<br>"));
+  document.getElementById("qTerms").innerHTML = lines.map((l, i) => i < 3 ? esc(l) : l).join("<br>");
 
   // Notes
   const notes = document.getElementById("notes").value;
@@ -721,7 +788,15 @@ function showEdit() {
   document.getElementById("previewView").style.display = "none";
 }
 
+// The document title becomes the suggested PDF filename
 function savePDF() {
+  const orig = document.title;
+  const client = document.getElementById("clientName").value.trim();
+  const name = ["Craic Quote", currentNum, client].filter(Boolean).join(" – ").replace(/[\\\/:*?"<>|]/g, "-");
+  document.title = name;
+  const restore = () => { document.title = orig; window.removeEventListener("afterprint", restore); };
+  window.addEventListener("afterprint", restore);
+  setTimeout(restore, 120000);
   window.print();
 }
 
@@ -796,6 +871,9 @@ function getState() {
     bar: selectedBar, pkg: val("pkgSelect"),
     eventHours: val("eventHours"), hours: val("hours"), bartenders: val("bartenders"), guestCount: val("guestCount"),
     addons: addons,
+    addonHours: Object.assign({}, addonHours),
+    custom: customItems.map(c => ({ name: c.name || "", price: c.price === "" ? "" : c.price, qty: c.qty || 1 })),
+    terms: val("terms"),
     discounts: { first: !!activeDiscounts.first, service: !!activeDiscounts.service, pct: !!activeDiscounts.pct, flat: !!activeDiscounts.flat },
     customPct: val("customPct"), customPctLabel: val("customPctLabel"), customFlat: val("customFlat"), customFlatLabel: val("customFlatLabel"),
     notes: val("notes"),
@@ -809,9 +887,12 @@ function applyState(s) {
   setVal("pkgSelect", s.pkg || "better_time");
   selectBar(s.bar || "carriage"); // runs onPkgChange + calc, which resets hour defaults — so hours are set after
   setVal("eventHours", s.eventHours); setVal("hours", s.hours); setVal("bartenders", s.bartenders); setVal("guestCount", s.guestCount);
-  selectedAddons = {}; addonQtys = {};
+  selectedAddons = {}; addonQtys = {}; addonHours = Object.assign({}, s.addonHours || {});
   Object.keys(s.addons || {}).forEach(id => { selectedAddons[id] = true; addonQtys[id] = s.addons[id]; });
+  customItems = (s.custom || []).map(c => ({ name: c.name || "", price: c.price === undefined ? "" : c.price, qty: c.qty || 1 }));
+  renderCustomItems();
   syncAddonUI();
+  document.getElementById("terms").value = (s.terms === undefined || s.terms === null) ? DEFAULT_TERMS : s.terms;
   activeDiscounts = {};
   ["first","service","pct","flat"].forEach(t => { activeDiscounts[t] = !!(s.discounts && s.discounts[t]); });
   setVal("customPct", s.customPct); setVal("customPctLabel", s.customPctLabel); setVal("customFlat", s.customFlat); setVal("customFlatLabel", s.customFlatLabel);
@@ -828,7 +909,9 @@ function syncAddonUI() {
     div.classList.toggle("active", on);
     div.querySelector(".addon-check").textContent = on ? "✓" : "";
     const q = div.querySelector(".addon-qty");
-    if (q) { q.style.display = on ? "block" : "none"; q.value = addonQtys[id] || 1; }
+    if (q) q.value = addonQtys[id] || 1;
+    const h = div.querySelector(".addon-hrs");
+    if (h) h.value = addonHours[id] || serviceHours();
   });
 }
 
